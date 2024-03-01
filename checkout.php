@@ -1,8 +1,39 @@
 <?php
 session_start();
 
-$total_price = 100; // Initialize total price variable
+// Function to remove an item from the cart by SKU
+function removeItemFromCart($sku) {
+    if(isset($_SESSION['cart'][$sku])) {
+        unset($_SESSION['cart'][$sku]);
+    }
+}
 
+
+// Check if 'remove-from-cart' parameter is present in the URL
+if(isset($_GET['remove-from-cart'])) {
+    // Get the SKU of the product to remove from cart
+    $product_sku = $_GET['remove-from-cart'];
+    // Call the function to remove the item from the cart
+    removeItemFromCart($product_sku);
+}
+
+$total_quantity = 0;
+if(isset($_SESSION['cart'])) {
+    foreach($_SESSION['cart'] as $sku => $item) {
+        $total_quantity += $item['quantity'];
+    }
+}
+
+$total_price = 0; // Initialize total price variable
+if(isset($_SESSION['cart'])) {
+    foreach($_SESSION['cart'] as $item) {
+        $total_price += ($item['quantity'] * $item['price']);
+    }
+}
+if(isset($_GET['total'])) {
+    // Retrieve the total value passed as query parameter
+    $cartTotal = $_GET['total'];
+}
 /**
  * @param array $data
  * @param null $passPhrase
@@ -23,8 +54,9 @@ function generateSignature($data, $passPhrase = null) {
     }
     return md5( $getString );
 } 
-// Construct variables
-$cartTotal = $total_price; // This amount needs to be sourced from your application
+
+
+$cartTotal = $total_price;
 $passphrase = 'jt7NOE43FZPn';
 $data = array(
     // Merchant details
@@ -63,10 +95,12 @@ $htmlForm .= '<button type="submit" class="placeorder">Place Order </button></fo
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checkout</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="../styles/styles.css">
     <script src="https://kit.fontawesome.com/207b037cfb.js" crossorigin="anonymous"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 </head>
 <body>
+<?php include("../header/header.php"); ?>
     <div class="container">
         <div class="checkout-body" style="display: flex;">
             <div class="checkout-fields" style="display: flex; flex-direction: column;">
@@ -122,7 +156,7 @@ $htmlForm .= '<button type="submit" class="placeorder">Place Order </button></fo
                         </tr>
                         <tr>
                             <th class="summary-title" style="text-align: left;">Total</th>
-                            <td class="summary-total" style="text-align: right; font-weight: bold;">R0.00</td>
+                            <td class="summary-total" style="text-align: right; font-weight: bold;">R<?php echo $total_price; ?></td>
                         </tr>
                     </tbody>
                 </table>
@@ -131,14 +165,14 @@ $htmlForm .= '<button type="submit" class="placeorder">Place Order </button></fo
                 </div>
                 <div class="placeorder" style="width: 100%;">
                 <?php echo $htmlForm; ?>
-                </div>
-            </form>
+                </form>
+            </div>
             </div>
         </div>
     </div>
 <script>
     // Function to get form data
-function getFormData() {
+    function getFormData() {
     return {
         collection_address: {
             type: "business",
@@ -153,37 +187,32 @@ function getFormData() {
             lng: 28.277583
         },
         delivery_address: {
-            type: "residential",
-            company: "",
+            type: "business",
+            company: "uAfrica.com",
             street_address: document.getElementById("deliveryStreetAddress").value,
-            local_area: "", 
+            local_area: "Menlyn",
             city: document.getElementById("deliveryCity").value,
             zone: document.getElementById("deliveryProvince").value,
-            country: "ZA", // Assuming South Africa
+            country: "ZA",
             code: document.getElementById("deliveryPostalCode").value,
-            lat: 0, 
-            lng: 0 
         },
         parcels: [
             {
-                submitted_length_cm: 42.5, 
-                submitted_width_cm: 38.5, 
-                submitted_height_cm: 5.5, 
-                submitted_weight_kg: 3 
+                submitted_length_cm: 42.5, // You might need to capture this data from the form if available
+                submitted_width_cm: 38.5, // You might need to capture this data from the form if available
+                submitted_height_cm: 5.5, // You might need to capture this data from the form if available
+                submitted_weight_kg: 3 // You might need to capture this data from the form if available
             }
         ],
-        declared_value: 1500, 
-        collection_min_date: "2021-05-21", 
-        delivery_min_date: "2021-05-21" 
+
     };
 }
 
-
-
+// Function to make the API request
 function getShippingRates() {
     const formData = getFormData();
     const apiUrl = "https://api.shiplogic.com/v2/rates";
-    const bearerToken = "a601d99c75fc4c64b5a64288f97d52b4"; 
+    const bearerToken = "a601d99c75fc4c64b5a64288f97d52b4"; // Change this to your actual bearer token
 
     fetch(apiUrl, {
         method: "POST",
@@ -195,25 +224,46 @@ function getShippingRates() {
     })
     .then(response => response.json())
     .then(data => {
-        
+        // Handle the response data here
         console.log(data);
 
-                
-        const rate = data.rates[0].rate; 
+        // Extract the rate from the response
+        const rate = data.rates[0].rate; // Assuming there's only one rate in the array
         document.querySelector(".summary-shipping").innerHTML = `R${rate}`
         
+        // Now you can use the 'rate' variable as needed
         console.log("Rate:", rate);
         
+        // Send the rate value via AJAX to process.php
+        $.ajax({
+            type: 'POST',
+            url: 'process.php',
+            data: {variable: rate},
+            success: function(response){
+                $('.summary-total').html(`R${response}`);
+            }
+        });
         
     })
     .catch(error => {
-        
+        // Handle errors here
         console.error("Error:", error);
     });
     
 }
 
-setInterval(getShippingRates, 5000)
+// Call getShippingRates initially
+getShippingRates();
+
+// Set interval to call getShippingRates every 5 seconds
+setInterval(getShippingRates, 5000);
+
+</script>
+
+
+
+<script>
+
 </script>
 </body>
 </html>
