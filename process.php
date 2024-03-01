@@ -22,10 +22,6 @@ if(isset($_POST['variable'])) {
     
     // Add the JavaScript variable to $total_price and echo the result
     $total = $total_price + $jsVariable;
-    $total_price = 0; // Initialize total price variable
-
 }
-
-echo $total;
 
 ?>
